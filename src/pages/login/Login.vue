@@ -1,13 +1,24 @@
 <script setup>
 import {ref} from "vue";
 import {login} from "@/api/login.js";
-
+import {setToken} from "@/api/token.js";
+import {message} from "ant-design-vue";
+import router from "@/router/index.js"
 const loginForm = ref({
   username: 'admin',
   password: 'admin123',
 });
 const handleLogin = () => {
   login(loginForm.value)
+      .then((res)=>{
+        console.log(res)
+        setToken(res.data.data.token)
+        message.success('登录成功');
+        router.push({ path: '/home' });
+      })
+      .catch((err)=>{
+        console.log(err);
+      })
 }
 </script>
 
