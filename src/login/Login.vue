@@ -1,5 +1,14 @@
 <script setup>
+import {ref} from "vue";
+import {login} from "@/api/login.js";
 
+const loginForm = ref({
+  username: 'admin',
+  password: 'admin123',
+});
+const handleLogin = () => {
+  login(loginForm.value)
+}
 </script>
 
 <template>
@@ -9,15 +18,16 @@
       <!-- label-col 控标签列宽，wrapper-col 控输入框列宽，两者之和即表单内容宽度 -->
       <div class="form-wrapper">
       <a-form
+        :model="loginForm"
         class="login-form"
         :label-col="{ style: { width: '90px' } }"
         :wrapper-col="{ style: { width: '280px' } }"
       >
-        <a-form-item label="账号">
-          <a-input placeholder="admin"></a-input>
+        <a-form-item label="账号" >
+          <a-input v-model:value="loginForm.username"></a-input>
         </a-form-item>
         <a-form-item label="密码" >
-          <a-input placeholder="admin123"></a-input>
+          <a-input v-model:value="loginForm.password"></a-input>
         </a-form-item>
         <!-- label=" " 是空标签占位：让这两项也渲染出 90px 的标签列，
              否则没有 label 的 form-item 会顶到最左边，和上面的输入框错开；
@@ -26,7 +36,7 @@
           <a-checkbox>记住密码</a-checkbox>
         </a-form-item>
         <a-form-item label=" " :colon="false">
-          <a-button type="primary" block>登录</a-button>
+          <a-button type="primary" block @click="handleLogin">登录</a-button>
         </a-form-item>
       </a-form>
       </div>
