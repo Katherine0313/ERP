@@ -252,7 +252,7 @@ BOM 是**多级递归结构**：成品 → 半成品 → 物料，展开深度�
 | Jackson 版本换代 | Boot 4.2 用 Jackson 3（`tools.jackson`），java.time 支持已内置，`spring.jackson.date-format` 不作用于 LocalDateTime |
 | 数据库凭据错误但启动不报错 | devtools 的 `DevToolsDataSourceAutoConfiguration` 把 DataSource 延迟到首次取连接才创建，凭据问题要到第一次查库才暴露 |
 | `spring.config.import` 不做 profile 隔离 | 显式 import 的具体文件固定按 `NO_PROFILE` 解析，prod 也会加载；必须依赖 Boot 默认搜索位置 `file:./config/` 的 profile 机制 |
-| 数据库密码不匹配 | `config/application-dev.yml` 中 `erp_db` / `123456` 被本机 MySQL 8.0.46 拒绝（Access denied），IDEA 数据源用的是 `root`，需确认真实账号密码 |
+| 数据库密码不匹配 | `src/main/resources/application-dev.yml` 里配的账号被本机 MySQL 8.0.46 拒绝（Access denied），且本机原本没有该账号；IDEA 数据源用的是 `root`，需确认真实账号密码 |
 
 ---
 

@@ -14,11 +14,15 @@
 -- 1. 建库 + 建应用账号
 --    本机 MySQL 原本只有 root，erp_db 账号不存在，导致应用连不上库。
 --    CREATE USER IF NOT EXISTS + ALTER USER 让脚本可重复执行。
+--
+--    注意：下面的密码是占位符，执行前请先改成你自己的密码，
+--    并且不要把真实密码提交到版本库 —— 改完记得同步
+--    src/main/resources/application-dev.yml 里的 DB_USERNAME / DB_PASSWORD。
 -- ---------------------------------------------------------------------
 CREATE DATABASE IF NOT EXISTS erp_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
-CREATE USER IF NOT EXISTS 'erp_db'@'%' IDENTIFIED BY '123456';
-ALTER USER 'erp_db'@'%' IDENTIFIED BY '123456';
+CREATE USER IF NOT EXISTS 'erp_db'@'%' IDENTIFIED BY '改成你自己的密码';
+ALTER USER 'erp_db'@'%' IDENTIFIED BY '改成你自己的密码';
 GRANT ALL PRIVILEGES ON erp_db.* TO 'erp_db'@'%';
 FLUSH PRIVILEGES;
 
