@@ -1,4 +1,4 @@
-package com.erp.common.util;
+package com.erp.utils;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 

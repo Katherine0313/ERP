@@ -13,10 +13,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 后台登录接口。
+ * 后台（管理系统）登录接口。
+ *
+ * <p>路径按端划分，管理端走 /api/admin/**，App 端后续走 /api/app/**，
+ * 两个前端的接口不会互相撞车。
  */
 @Tag(name = "后台登录", description = "管理员登录")
-@RequestMapping("/api")
+@RequestMapping("/api/admin")
 @RestController
 public class AdminLoginController {
 

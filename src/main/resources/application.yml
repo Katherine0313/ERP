@@ -79,9 +79,9 @@ logging:
   level:
     root: INFO
 
-erp:
-  jwt:
-    # 复用 dev 配置里的 JWT_SECRET（64 位 base64），HS256 要求解码后至少 32 字节
-    secret: ${JWT_SECRET}
-    # 令牌有效期（分钟）
-    expire-minutes: 120
+# JWT 配置（对应 com.erp.properties.JwtProperties，前缀 jwt）
+jwt:
+  # 密钥，直接取 UTF-8 字节，长度决定 jjwt 自动选用的签名算法
+  secret: ${JWT_SECRET}
+  # 令牌有效期（秒），默认 2 小时
+  expire: ${JWT_EXPIRE:7200}

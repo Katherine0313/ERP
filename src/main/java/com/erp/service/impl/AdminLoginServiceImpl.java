@@ -1,12 +1,12 @@
 package com.erp.service.impl;
 
 import com.erp.common.exception.BusinessException;
-import com.erp.common.util.JwtUtil;
-import com.erp.common.util.PasswordUtil;
 import com.erp.dto.AdminLoginDTO;
 import com.erp.entity.Admin;
 import com.erp.mapper.AdminMapper;
 import com.erp.service.AdminLoginService;
+import com.erp.utils.JwtUtil;
+import com.erp.utils.PasswordUtil;
 import com.erp.vo.AdminLoginVO;
 import com.erp.vo.AdminUserVO;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 管理员登录。
@@ -62,7 +63,9 @@ public class AdminLoginServiceImpl implements AdminLoginService {
         }
 
         // 5. 签发令牌并组装登录响应
-        String token = jwtUtil.generateAdminToken(admin.getId(), admin.getUsername(), admin.getAdminAvatar());
+        // roles / permissions 暂空（RBAC 未接入），sid 暂空（未接在线会话）
+        String token = jwtUtil.generateAdminToken(admin.getId(), admin.getUsername(),
+                List.of(), List.of(), null, admin.getAdminAvatar());
         return AdminLoginVO.builder()
                 .token(token)
                 .user(AdminUserVO.builder()
