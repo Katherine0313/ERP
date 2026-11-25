@@ -14,7 +14,7 @@ const handleLogin = () => {
         console.log(res)
         setToken(res.data.data.token)
         message.success('登录成功');
-        router.push({ path: '/home' });
+        router.push({ path: '/layout/home' });
       })
       .catch((err)=>{
         console.log(err);
