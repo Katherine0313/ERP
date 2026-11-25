@@ -11,7 +11,7 @@ import {
   ShopOutlined,
   UserOutlined,
 } from '@ant-design/icons-vue'
-import { removeToken } from '@/api/token.js'
+import { removeToken } from '@/utils/token.js'
 import { getCurrentUser } from '@/utils/auth.js'
 
 const props = defineProps({

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import {message} from 'ant-design-vue'
-import {getToken, removeToken} from './token.js'
+import {getToken, removeToken} from '../utils/token.js'
 
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL
 axios.defaults.timeout = 10000

@@ -2,7 +2,7 @@
 // token 由后端 JWT 生成，payload 内含 { id, username, roles, permissions, adminAvatar }
 // 前端只存了 token，这里直接从 token 里解析出当前用户信息
 
-import { getToken } from '@/api/token.js'
+import { getToken } from '@/utils/token.js'
 
 /** 从 JWT token 中解析出当前登录用户信息，解析失败返回 null */
 export function getCurrentUser() {

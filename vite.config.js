@@ -46,7 +46,16 @@ export default defineConfig({
     // 本地开发统一走网关 8082，避免跨域；后端没起时把 target 换成
     '/api': { target: 'http://127.0.0.1:8082', changeOrigin: true },
     // 商品图片（后端存 /image/upload/xxx.webp 相对路径）
-    '/image': { target: 'http://127.0.0.1:8082', changeOrigin: true },
+    // public/image/login/ 是前端自己的登录页插图，豁免代理，否则会被转发到 8082 而 500
+    '/image': {
+      target: 'http://127.0.0.1:8082',
+      changeOrigin: true,
+      bypass(req) {
+        if (req.url && req.url.startsWith('/image/login/')) {
+          return req.url
+        }
+      },
+    },
     // 用户头像等上传文件
     '/upload': { target: 'http://127.0.0.1:8082', changeOrigin: true },
   },

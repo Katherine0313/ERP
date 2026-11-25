@@ -7,6 +7,7 @@ import 'dayjs/locale/zh-cn'
 
 import App from './App.vue'
 import router from './router'
+import './router/permission.js'
 
 // 日期类组件底层用 dayjs，不设置的话星期/月份会显示英文
 dayjs.locale('zh-cn')
