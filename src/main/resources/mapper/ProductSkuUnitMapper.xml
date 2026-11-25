@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductSkuUnitMapper">
+
+    <select id="selectBySkuId" resultType="com.erp.vo.ProductSkuUnitVO">
+        SELECT su.id,
+               su.sku_id AS skuId,
+               su.unit_id AS unitId,
+               un.name AS unitName,
+               un.ratio,
+               su.default_flag AS defaultFlag
+        FROM product_sku_unit su
+        JOIN product_unit un ON un.id = su.unit_id AND un.delete_flag = '0'
+        WHERE su.sku_id = #{skuId} AND su.delete_flag = '0'
+        ORDER BY su.id
+    </select>
+
+    <insert id="insert">
+        INSERT INTO product_sku_unit (
+            sku_id, product_id, unit_id, default_flag, delete_flag,
+            created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{skuId}, #{productId}, #{unitId}, #{defaultFlag}, '0',
+            #{createdBy}, #{createdBy}, #{createTime}, #{createTime}
+        )
+    </insert>
+
+    <delete id="physicalDeleteByProductId">
+        DELETE FROM product_sku_unit WHERE product_id = #{productId}
+    </delete>
+</mapper>

@@ -39,7 +39,7 @@ public class AdminLoginController {
     /** 取客户端 IP：优先取代理透传的 X-Forwarded-For 第一段 */
     private String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
+        if (forwarded != null && !forwarded.isBlank()) { 
             return forwarded.split(",")[0].trim();
         }
         String realIp = request.getHeader("X-Real-IP");

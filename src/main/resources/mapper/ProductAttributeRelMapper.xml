@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductAttributeRelMapper">
+
+    <select id="selectGroupIdsByProductId" resultType="long">
+        SELECT group_id
+        FROM product_attribute_rel
+        WHERE product_id = #{productId} AND delete_flag = '0'
+        ORDER BY sort, id
+    </select>
+
+    <insert id="insert">
+        INSERT INTO product_attribute_rel (
+            product_id, group_id, sort, delete_flag,
+            created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{productId}, #{groupId}, #{sort}, '0',
+            #{createdBy}, #{createdBy}, #{createTime}, #{createTime}
+        )
+    </insert>
+
+    <delete id="physicalDeleteByProductId">
+        DELETE FROM product_attribute_rel WHERE product_id = #{productId}
+    </delete>
+</mapper>

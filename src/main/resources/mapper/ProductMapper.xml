@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductMapper">
+
+    <!-- 分页列表公共列：类目名/单位名联表，规格数与零售价子查询 -->
+    <sql id="listColumns">
+        p.id,
+        p.product_no AS productNo,
+        p.name,
+        p.mnemonic,
+        p.category_id AS categoryId,
+        c.name AS categoryName,
+        p.unit_id AS unitId,
+        u.name AS unitName,
+        p.stock_quantity AS stockQuantity,
+        p.cost_price AS costPrice,
+        (SELECT COUNT(*) FROM product_sku s
+          WHERE s.product_id = p.id AND s.delete_flag = '0') AS skuCount,
+        (SELECT pr.price FROM product_price pr
+          JOIN product_sku s2 ON s2.id = pr.sku_id AND s2.delete_flag = '0'
+          WHERE pr.product_id = p.id AND pr.price_type = '1'
+            AND pr.unit_id = 0 AND pr.delete_flag = '0' AND pr.enabled = 1
+          ORDER BY s2.id LIMIT 1) AS purchasePrice,
+        (SELECT pr.price FROM product_price pr
+          JOIN product_sku s3 ON s3.id = pr.sku_id AND s3.delete_flag = '0'
+          WHERE pr.product_id = p.id AND pr.price_type = '2'
+            AND pr.unit_id = 0 AND pr.delete_flag = '0' AND pr.enabled = 1
+          ORDER BY s3.id LIMIT 1) AS retailPrice,
+        (SELECT pr.price FROM product_price pr
+          JOIN product_sku s4 ON s4.id = pr.sku_id AND s4.delete_flag = '0'
+          WHERE pr.product_id = p.id AND pr.price_type = '3'
+            AND pr.unit_id = 0 AND pr.delete_flag = '0' AND pr.enabled = 1
+          ORDER BY s4.id LIMIT 1) AS salePrice,
+        (SELECT pr.price FROM product_price pr
+          JOIN product_sku s5 ON s5.id = pr.sku_id AND s5.delete_flag = '0'
+          WHERE pr.product_id = p.id AND pr.price_type = '4'
+            AND pr.unit_id = 0 AND pr.delete_flag = '0' AND pr.enabled = 1
+          ORDER BY s5.id LIMIT 1) AS lowPrice,
+        p.status,
+        p.enable_serial_number AS enableSerialNumber,
+        p.enable_batch_number AS enableBatchNumber,
+        p.create_time AS createTime
+    </sql>
+
+    <sql id="listWhere">
+        WHERE p.delete_flag = '0'
+        <if test="query.keyword != null and query.keyword != ''">
+            AND (p.name LIKE CONCAT('%', #{query.keyword}, '%')
+              OR p.product_no LIKE CONCAT('%', #{query.keyword}, '%')
+              OR p.mnemonic LIKE CONCAT('%', #{query.keyword}, '%'))
+        </if>
+        <if test="query.status != null and query.status != ''">
+            AND p.status = #{query.status}
+        </if>
+        <if test="query.categoryId != null">
+            AND p.category_id = #{query.categoryId}
+        </if>
+    </sql>
+
+    <select id="selectPage" resultType="com.erp.vo.ProductListVO">
+        SELECT <include refid="listColumns"/>
+        FROM product p
+        LEFT JOIN product_category c ON c.id = p.category_id AND c.delete_flag = '0'
+        LEFT JOIN product_unit u ON u.id = p.unit_id AND u.delete_flag = '0'
+        <include refid="listWhere"/>
+        ORDER BY p.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM product p
+        <include refid="listWhere"/>
+    </select>
+
+    <!-- 导出用：同一套查询条件，不分页，限制最大条数防止拖库 -->
+    <select id="selectForExport" resultType="com.erp.vo.ProductListVO">
+        SELECT <include refid="listColumns"/>
+        FROM product p
+        LEFT JOIN product_category c ON c.id = p.category_id AND c.delete_flag = '0'
+        LEFT JOIN product_unit u ON u.id = p.unit_id AND u.delete_flag = '0'
+        <include refid="listWhere"/>
+        ORDER BY p.id DESC
+        LIMIT 10000
+    </select>
+
+    <!-- 商品平铺下拉 -->
+    <select id="selectOptions" resultType="com.erp.vo.ProductListVO">
+        SELECT p.id, p.product_no AS productNo, p.name, p.mnemonic, p.category_id AS categoryId
+        FROM product p
+        WHERE p.delete_flag = '0'
+        ORDER BY p.id DESC
+    </select>
+
+    <!-- 兼容旧接口：未删除商品实体列表 -->
+    <select id="selectAllProducts" resultType="com.erp.entity.Product">
+        SELECT * FROM product
+        WHERE delete_flag = '0'
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectById" resultType="com.erp.entity.Product">
+        SELECT * FROM product
+        WHERE id = #{id} AND delete_flag = '0'
+    </select>
+
+    <select id="countByProductNo" resultType="int">
+        SELECT COUNT(*) FROM product
+        WHERE product_no = #{productNo} AND delete_flag = '0'
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <insert id="insert" parameterType="com.erp.entity.Product"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product (
+            product_no, category_id, name, mfrs, brand, mnemonic, unit_id,
+            expiry_num, weight, stock_quantity, cost_price, img_name, remark, status,
+            enable_serial_number, enable_batch_number,
+            delete_flag, deleted_token, created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{productNo}, #{categoryId}, #{name}, #{mfrs}, #{brand}, #{mnemonic}, #{unitId},
+            #{expiryNum}, #{weight}, COALESCE(#{stockQuantity}, 0), #{costPrice}, #{imgName}, #{remark}, #{status},
+            #{enableSerialNumber}, #{enableBatchNumber},
+            '0', '0', #{createdBy}, #{updatedBy}, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.erp.entity.Product">
+        UPDATE product SET
+            product_no = #{productNo},
+            category_id = #{categoryId},
+            name = #{name},
+            mfrs = #{mfrs},
+            brand = #{brand},
+            mnemonic = #{mnemonic},
+            unit_id = #{unitId},
+            expiry_num = #{expiryNum},
+            weight = #{weight},
+            stock_quantity = COALESCE(#{stockQuantity}, 0),
+            cost_price = #{costPrice},
+            img_name = #{imgName},
+            remark = #{remark},
+            status = #{status},
+            enable_serial_number = #{enableSerialNumber},
+            enable_batch_number = #{enableBatchNumber},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id} AND delete_flag = '0'
+    </update>
+
+    <update id="updateStatus">
+        UPDATE product SET
+            status = #{status},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id} AND delete_flag = '0'
+    </update>
+
+    <update id="softDelete">
+        UPDATE product SET
+            delete_flag = '1',
+            deleted_token = #{deletedToken},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id} AND delete_flag = '0'
+    </update>
+
+    <!-- ============ 批量操作 ============ -->
+    <update id="batchUpdateStatus">
+        UPDATE product SET
+            status = #{status},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE delete_flag = '0' AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="batchEdit">
+        UPDATE product
+        <set>
+            <if test="dto.categoryId != null">category_id = #{dto.categoryId},</if>
+            <if test="dto.brand != null and dto.brand != ''">brand = #{dto.brand},</if>
+            <if test="dto.mfrs != null and dto.mfrs != ''">mfrs = #{dto.mfrs},</if>
+            <if test="dto.mnemonic != null and dto.mnemonic != ''">mnemonic = #{dto.mnemonic},</if>
+            <if test="dto.status != null and dto.status != ''">status = #{dto.status},</if>
+            <if test="dto.remark != null and dto.remark != ''">remark = #{dto.remark},</if>
+            updated_by = #{updatedBy},
+            update_time = #{updateTime},
+        </set>
+        WHERE delete_flag = '0' AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="batchUpdateStock">
+        UPDATE product SET
+            stock_quantity = #{quantity},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE delete_flag = '0' AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="batchUpdateCost">
+        UPDATE product SET
+            cost_price = #{cost},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE delete_flag = '0' AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <!-- ============ 导入用查询 ============ -->
+    <select id="selectByProductNo" resultType="com.erp.entity.Product">
+        SELECT * FROM product
+        WHERE product_no = #{productNo} AND delete_flag = '0'
+        LIMIT 1
+    </select>
+
+    <select id="selectCategoryIdByName" resultType="java.lang.Long">
+        SELECT id FROM product_category
+        WHERE name = #{name} AND delete_flag = '0'
+        LIMIT 1
+    </select>
+
+    <select id="selectUnitIdByName" resultType="java.lang.Long">
+        SELECT id FROM product_unit
+        WHERE name = #{name} AND delete_flag = '0'
+        LIMIT 1
+    </select>
+</mapper>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductSkuAttributeRelMapper">
+
+    <select id="selectBySkuId" resultType="com.erp.vo.ProductSkuAttributeVO">
+        SELECT r.group_id AS groupId,
+               g.name AS groupName,
+               r.value_id AS valueId,
+               v.`value` AS valueName
+        FROM product_sku_attribute_rel r
+        JOIN product_attribute_group g ON g.id = r.group_id AND g.delete_flag = '0'
+        JOIN product_attribute_value v ON v.id = r.value_id AND v.delete_flag = '0'
+        WHERE r.sku_id = #{skuId} AND r.delete_flag = '0'
+        ORDER BY r.group_id
+    </select>
+
+    <insert id="insert">
+        INSERT INTO product_sku_attribute_rel (
+            sku_id, product_id, group_id, value_id, delete_flag,
+            created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{skuId}, #{productId}, #{groupId}, #{valueId}, '0',
+            #{createdBy}, #{createdBy}, #{createTime}, #{createTime}
+        )
+    </insert>
+
+    <delete id="physicalDeleteByProductId">
+        DELETE FROM product_sku_attribute_rel WHERE product_id = #{productId}
+    </delete>
+</mapper>
