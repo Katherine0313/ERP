@@ -1,0 +1,23 @@
+# 依赖与构建产物
+node_modules/
+target/
+dist/
+unpackage/
+
+# IDE 与本地配置
+.idea/
+.vscode/
+.claude/settings.local.json
+*.iml
+*.iws
+*.log
+
+# 本地凭据（含真实密码 / 密钥，不进版本库）
+**/.env
+**/.env.server
+**/application-dev.yml
+redis-data/
+
+# 运行时生成
+upload/
+.uploads/
