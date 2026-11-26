@@ -1,0 +1,13 @@
+# 依赖
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+
+# 构建产物
+unpackage/
+dist/
+
+# 本地临时脚本
+.uploads/
