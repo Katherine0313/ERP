@@ -158,4 +158,28 @@
         </plugins>
     </build>
 
+    <profiles>
+        <!--
+          生产构建 profile：deploy/release.sh 用 `mvn -Pprod package` 调用。
+          作用是把 application-dev.yml 从 jar 里剔除 —— 该文件含真实的数据库密码与 JWT 密钥
+          （文件本身已被 .gitignore 忽略，但它位于 src/main/resources 下，打包会被塞进 jar）。
+          生产凭据一律由环境变量注入，见 application-prod.yml 与 deploy/.env。
+          不带 -Pprod 时保持默认行为，本地开发零配置。
+        -->
+        <profile>
+            <id>prod</id>
+            <build>
+                <resources>
+                    <resource>
+                        <directory>src/main/resources</directory>
+                        <filtering>false</filtering>
+                        <excludes>
+                            <exclude>application-dev.yml</exclude>
+                        </excludes>
+                    </resource>
+                </resources>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

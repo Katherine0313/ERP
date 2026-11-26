@@ -35,6 +35,8 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       database: 0
+      # 生产环境 Redis 容器带密码；留空表示无密码（本地 dev 场景）
+      password: ${REDIS_PASSWORD:}
       timeout: 3s
       connect-timeout: 3s
       # 本项目只当缓存用，不做 Spring Data Repository 扫描，关掉可省掉启动时的扫描告警
@@ -47,10 +49,6 @@ spring:
     time-zone: Asia/Shanghai
     # 响应里不输出 null 字段
     default-property-inclusion: non_null
-  servlet:
-    encoding:
-      charset: UTF-8
-      force: true
   web:
     error:
       # 错误信息默认不外泄（Boot 默认值，这里显式声明以免误改）；
@@ -58,7 +56,15 @@ spring:
       include-message: never
       include-binding-errors: never
       include-stacktrace: never
-
+  # servlet 只能配置一次：encoding 与 multipart 必须放在同一个 servlet 下
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+    # 上传大小限制：图片上限 5MB、视频上限 50MB，请求上限再留 1MB 给表单其它字段
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 51MB
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -85,3 +91,5 @@ jwt:
   secret: ${JWT_SECRET}
   # 令牌有效期（秒），默认 2 小时
   expire: ${JWT_EXPIRE:7200}
+
+

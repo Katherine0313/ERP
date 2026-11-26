@@ -36,3 +36,12 @@ doc/
 ### dev 配置里带真实凭据，所以整份忽略；换机器时按模板另存一份即可 ###
 src/main/resources/application-dev.yml
 config/application-dev.yml
+findings.md
+
+### 部署凭据（生产环境变量，含真实密码） ###
+deploy/.env
+deploy/.env.server
+deploy/redis-data/
+
+### 上传文件（运行时生成） ###
+upload/

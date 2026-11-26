@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理。保证任何异常都返回统一结构 {@link Result}，
@@ -46,6 +47,17 @@ public class GlobalExceptionHandler {
         log.warn("请求体解析失败: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Result.error(HttpStatus.BAD_REQUEST.value(), "请求参数格式错误"));
+    }
+
+    /**
+     * 路径不存在。生产环境关掉了 Swagger，被拦下的 /v3/api-docs 之类的请求
+     * 会走到这里；返回 404 而不是被兜底 handler 变成 500。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result<Void>> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("请求路径不存在: {}", e.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Result.error(HttpStatus.NOT_FOUND.value(), "请求资源不存在"));
     }
 
     /** 兜底：未预期的异常记完整堆栈，但只回一句笼统的话，不泄露内部细节 */

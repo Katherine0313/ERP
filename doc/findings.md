@@ -236,6 +236,7 @@ BOM 是**多级递归结构**：成品 → 半成品 → 物料，展开深度�
 | Excel 导入导出 | EasyExcel 或 POI，大数据量分批写出，避免 OOM |
 | 登录与鉴权 | 拦截器 / Spring Security，后端统一鉴权，前端按权限动态生成路由 |
 | 对象管理 | Spring Boot 自动装配与 `@Bean`，不写 XML 配置 |
+| 依赖注入 | 用 `@Resource`（或 `@Autowired`）字段注入，**不用构造器注入**（Controller / Service 统一按此写法） |
 | 通用 CRUD 代码 | 用 MyBatis-Plus 的 `BaseMapper` / `IService` 收敛，不重复造轮子 |
 
 ---
@@ -510,6 +511,331 @@ BOM 是**多级递归结构**：成品 → 半成品 → 物料，展开深度�
 - MySQL 8.0.46 @ 127.0.0.1:3306（库 `erp_db`）
 - Redis @ 127.0.0.1:6379
 - Swagger UI：`http://127.0.0.1:8082/swagger-ui.html`
+
+---
+
+## 部署与运维（生产环境）
+
+> 本节为固定规则，后续沟通不再重复确认。
+
+### 线上环境
+
+| 项 | 值 |
+|---|---|
+| 云厂商 / 形态 | 腾讯云轻量应用服务器（控制台自带网站 / 数据库 / Docker / SSL / 终端 / 计划任务） |
+| 公网 IP | `193.112.176.228` |
+| 应用部署目录 | `/www/java/erp-boot`（另有 `/www/java/avatar` 等同级目录，属其他项目） |
+| 运行方式 | **全部跑在 Docker 里**，不以裸 jar 方式常驻 |
+| 发布方式 | 本地写脚本上传执行，通过 **deploy 命令**触发一次发布 |
+| 域名 | `jiemids.com`（DNSPod 注册 + **EdgeOne 接管 NS**，`ns1/ns2.qeodns.com`） |
+
+### 域名解析规则（重要）
+
+`jiemids.com` 的权威 NS 是 `qeodns.com`，即 **EdgeOne 接管了 DNS**。
+
+因此：
+
+- **在 DNSPod「记录管理」里加的记录不会生效** —— 那个面板不向权威服务器下发数据。
+- 正确做法是去 **EdgeOne 控制台 → 站点列表 → `jiemids.com` → 「DNS 记录」页签** 添加记录。
+- **不要在腾讯云域名管理里点「修改 DNS 服务器」**，那会把 EdgeOne 的 NS 覆盖掉，直接打断线上访问。
+
+各端子域名规划（**已确定**）：
+
+| 用途 | 子域名 | 记录 | 状态 |
+|---|---|---|---|
+| **ERP 管理系统（Web 端）** | **`erp.jiemids.com`** | A → `193.112.176.228` | **已定，就是这个** |
+| APP / 小程序接口 | `api.jiemids.com` | A → `193.112.176.228`（与 ERP 同源站，由 Nginx 按路径分流） | 待建 |
+
+> `erp.jiemids.com` 是 **ERP 的 Web 管理端正式域名**，不是临时域名。
+> 宝塔面板里已存在该站点的 nginx 配置（`/www/server/panel/vhost/nginx/erp.jiemids.com.conf`），
+> 当前反代指向 `127.0.0.1:8082`，站点根目录 `/www/wwwroot/erp.jiemids.com`。
+> ERP 前后端部署完成后，这个站点会同时承载：前端静态页面 + 后端 API（`/api/` 反代到 8082）。
+>
+> 现状提示：该站点当前访问返回 **404**（前端静态资源还没放进去），
+> `/api/` 反代返回 **502**（8082 端口还没有服务在监听）。这两项都会在部署完成后自然恢复。
+
+### 域名成本结论
+
+**不需要额外购买域名。** 一个主域名可派生任意多个子域名，不额外收费、不需要单独备案。
+子域名自动继承主域名的备案（同云厂商前提下）。唯一要花钱的是一张**通配符证书 `*.jiemids.com`**，覆盖全部子域名。
+
+### 服务器数据库现状（2026-11-26 实测）
+
+宝塔 MySQL **5.7.44-log**（不是 8.0），与电商项目**共用同一个实例**，库与账号各自独立。
+
+| 项 | 值 |
+|---|---|
+| MySQL root 密码 | `7b9f162521890cc1`（宝塔面板 `config.mysql_root` 里读出来的；面板里旧的 `admin` 值已失效） |
+| ERP 库 | `erp_db`（utf8mb4_general_ci） |
+| ERP 账号 | `erp_db` / `erp_9f3c7a21d84b6e05`，host 为 `127.0.0.1` + `localhost` |
+| 电商库 | `e_commerce_db` / `e_commerce_db` / `123456` |
+| 建库方式 | **必须走宝塔面板的 `AddDatabase` API**，不能手工执行 `CREATE DATABASE` —— 手工建的库不会写进面板的 `databases` 表，面板列表里看不到，后续无法在面板上管理 |
+
+**建库脚本**（在服务器上执行，面板 pyenv 的 python 才能 import 面板模块）：
+
+```bash
+cd /www/server/panel/pyenv/bin
+./python3 - <<'PY'
+import sys, os
+sys.path.insert(0, '/www/server/panel'); sys.path.insert(0, '/www/server/panel/class')
+os.chdir('/www/server/panel')
+import database
+class Get(dict):
+    def __getattr__(self, k):
+        try: return self[k]
+        except KeyError: raise AttributeError(k)
+    def __setattr__(self, k, v): self[k] = v
+db = database.database()
+print(db.AddDatabase(Get({
+    'name': 'erp_db', 'db_user': 'erp_db',
+    'password': 'erp_9f3c7a21d84b6e05', 'codeing': 'utf8mb4',
+    'address': '127.0.0.1', 'ps': 'ERP 系统业务库', 'sid': 0,
+})))
+PY
+```
+
+> `Get` 必须是 **dict 子类**并同时支持 `getattr` / `setattr`：
+> `AddDatabase` 内部有 `get['ps'] = ...` 的赋值，普通的自定义类会抛 `TypeError`；
+> 一旦在写面板 SQLite 之前抛异常，**库已建但面板无记录**，需要手工 DROP 清理后重来。
+
+### MySQL socket 被删导致宝塔面板爆红（已修复）
+
+**现象**：宝塔「添加数据库」弹窗爆红 —— `127.0.0.1 状态：数据库连接失败，请检查 Mysql 是否正常运行`。
+
+**根因**：`/etc/my.cnf` 把 socket 配在 `/tmp/mysql.sock`，mysqld 从 10-24 起一直没重启；
+某个时刻该 socket 文件被删除，**进程仍在内核里 LISTEN 那个已删除的 inode**，
+于是「文件不存在 + 监听还在」的诡异状态：
+
+```
+ss -lx | grep mysql        → u_str LISTEN ... /tmp/mysql.sock   ← 内核层面还在
+ls -la /tmp/mysql.sock     → No such file or directory           ← 文件没了
+```
+
+宝塔的 `class/db_mysql.py` 在 `host == "localhost"` 时会**强制走 socket**：
+
+```python
+if self.__CONN_KWARGS["host"] == "localhost":
+    myconf = public.readFile("/etc/my.cnf")
+    socket_re = re.search(r"\nsocket\s*=\s*([^\n]+)", myconf)
+    if socket_re:
+        self.__CONN_KWARGS["unix_socket"] = socket_re.group(1)   # → 已失效的 /tmp/mysql.sock
+```
+
+所以面板连不上 → 爆红。**TCP 通路一直是好的**（`mysql -h127.0.0.1 --protocol=TCP` 正常）。
+
+**修复**（已执行，电商中断约 5 秒）：
+
+```bash
+# 1. 加防删规则（保险；systemd-tmpfiles 的 D 规则本来只清目录不删文件，
+#    但万一将来有带 age 的 f 规则，这条能挡住）
+echo 'x /tmp/mysql.sock' > /etc/tmpfiles.d/keep-mysql-sock.conf
+
+# 2. 重启 mysqld 重建 socket 文件
+/etc/init.d/mysqld restart
+```
+
+验证：`mysql -uroot -e 'select 1'`（socket 路径）已恢复；面板 `GetDatabasesList` 能列出
+`e_commerce_db` 与 `erp_db` 两个库。
+
+**长期方案（已完成，2026-11-26）**：socket 已迁到 `/run/mysqld/mysqld.sock`。
+
+```bash
+# 1. 改配置（备份在 /etc/my.cnf.bak-socket-migrate）
+sed -i 's|^socket\s*=.*|socket\t\t= /run/mysqld/mysqld.sock|' /etc/my.cnf   # 两行：client + mysqld 段
+
+# 2. 目录持久化：/run 是 tmpfs，机器重启后目录会消失
+cat > /etc/tmpfiles.d/mysql-sock-dir.conf <<'EOF'
+d /run/mysqld 0755 mysql mysql -
+EOF
+
+# 3. 建目录 + 重启
+mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
+/etc/init.d/mysqld restart
+```
+
+**为什么宝塔会自动跟随**：`class/db_mysql.py` 在 `host == "localhost"` 时会从 `/etc/my.cnf`
+正则读出 `socket=` 路径传给 pymysql，所以**只改配置即可，面板代码不用动**。
+
+**为什么这样就彻底了**：`/run` 是 tmpfs（内存盘），`systemd-tmpfiles` 不按文件年龄清理它，
+不会再出现「进程还在监听、socket 文件被删掉」的悬空状态。
+
+迁移后实测：
+- socket 落在 `/run/mysqld/mysqld.sock`，`/tmp/mysql.sock` 已不存在
+- 删掉 `/run/mysqld` 目录后 `systemd-tmpfiles --create` 能重建，重启 mysqld 后 socket 正常恢复
+- 面板 `CheckDatabaseStatus` 返回 `{'status': True, 'msg': '正常', 'db_status': True}`
+- 面板数据库列表正常列出 `e_commerce_db` 与 `erp_db`
+- 电商 11 个容器未受影响，`gateway` 与 `api.jiemids.com` 均返回 200
+
+> 旧的 `/etc/tmpfiles.d/keep-mysql-sock.conf` 已随迁移删除（不再需要）。
+> `/etc/my.cnf.bak-socket-migrate` 保留了改前原文件，**不带时间戳**。
+
+### 镜像仓库（TCR）
+
+| 项 | 值 |
+|---|---|
+| ERP 仓库 | `ccr.ccs.tencentyun.com/erp-boot/erp`（独立命名空间 `erp-boot`，仓库名 `erp`） |
+| 镜像 tag | `erp-日期-git短SHA`，工作区有改动带 `-dirty` 后缀 |
+| 登录凭证 | 本地与服务器都已登录 `ccr.ccs.tencentyun.com`，凭证对整个域名有效，**新仓库无需重新登录** |
+
+> **与电商项目同账号但不会混**：TCR 账号下还有电商的 `jiemi-ecommerce` 命名空间（13 个仓库）。
+> 镜像靠**完整路径**区分（`.../erp-boot/erp:erp-xxx` vs `.../jiemi-ecommerce/gateway:20261125-xxx`），
+> 仓库名不同即互不相干。tag 加 `erp-` 前缀进一步隔离，
+> `release.sh --rollback` 会**拒绝非 `erp-` 前缀的 tag**，防止误拉电商镜像。
+
+> **磁盘注意**：服务器上电商镜像已占 7.2GB（37 个镜像，仅 14 个在用，3.6GB 可回收）。
+> 每次发布都留一个 tag 会持续累积，发布后可跑 `docker image prune -f` 清理。
+
+### 服务器上有两套 nginx（踩过坑）
+
+实测发现服务器同时跑着两个 nginx master：
+
+| nginx | master pid | 监听 80/443 | 配置目录 | include 路径 |
+|---|---|---|---|---|
+| 系统 nginx | 1117 | ❌ | `/etc/nginx/` | `/etc/nginx/conf.d/*.conf`、`sites-enabled/*` |
+| **宝塔 nginx** | **68690** | ✅ **实际对外服务的** | `/www/server/nginx/conf/` | `/www/server/panel/vhost/nginx/*.conf` |
+
+**踩坑过程**：改完宝塔站点配置后用 `nginx -t` / `nginx -s reload`，
+结果操作的是**系统那套**（`/usr/sbin/nginx`），宝塔 nginx 压根没重载，
+配置改了不生效，排查绕了一圈。
+
+**正确命令**（必须带 `-c` 指定宝塔配置）：
+
+```bash
+/www/server/nginx/sbin/nginx -t    -c /www/server/nginx/conf/nginx.conf
+/www/server/nginx/sbin/nginx -s reload -c /www/server/nginx/conf/nginx.conf
+```
+
+判断哪个在服务：`ss -lntp | grep -E ':80 |:443 '` 看 socket 归属的 pid。
+
+### EdgeOne 与源站的缓存关系
+
+链路：`浏览器 → 腾讯云 EdgeOne → 源站 nginx`。
+
+- **源站返回 `Cache-Control: no-cache`，EdgeOne 仍然缓存** —— EdgeOne 的缓存规则由控制台配置决定，
+  **不理会源站的 `no-cache`**。源站侧的 no-cache 对边缘无效。
+- 边缘缓存的旧页面必须**在 EdgeOne 控制台手动刷新**，命令行刷不掉：
+  - 站点 → **缓存刷新 → 整站刷新**（换 index.html 时）
+  - 或 **URL 刷新**（单个文件）
+- **命令行自查是否命中边缘缓存**：
+
+```bash
+curl -I https://erp.jiemids.com/ | grep -i "EO-Cache-Status\|Age"
+# EO-Cache-Status: HIT + Age 很大 = 命中边缘缓存，需要去控制台刷新
+```
+
+- 加随机参数（`?_hc=时间戳`）会绕过边缘缓存打到源站，
+  适合验证「源站是好的、线上是坏的」这类问题，但**不能替代刷新缓存**。
+
+### 生产 MySQL 是 5.7，SQL 必须兼容 5.7
+
+服务器 MySQL 版本 **5.7.44-log**（不是 8.0），窗口函数（`ROW_NUMBER() OVER`）**不支持**：
+
+```sql
+select 1 as x, count(*) over () as y;
+→ ERROR 1064 (42000): ... near '() as y'
+```
+
+`doc/sql/product_phase1_seed.sql` 原来用窗口函数给属性值编号，
+已改写成 **5.7 兼容的自连接计数**（结果与窗口函数版本一致）：
+
+```sql
+rn  = (比它 id 小的同组值个数) + 1
+cnt = (同组值的总个数)
+```
+
+> 写 SQL 时不要默认服务器是 8.0。电商项目同样是 5.7。
+
+### 容器连 MySQL 的账号授权范围
+
+Docker 容器是以**网段 IP**（如 `172.20.0.3`）连 MySQL 的，
+不是 `localhost`。账号只授权 `localhost` / `127.0.0.1` 会导致：
+
+```
+Access denied for user 'erp_db'@'172.20.0.3' (using password: YES)
+```
+
+**必须授权 `'用户'@'%'`**（或对应网段）。宝塔面板建库时「访问权限」选「本地服务器」
+只建了 `localhost` 账号，容器连不上，要手工补：
+
+```sql
+CREATE USER IF NOT EXISTS 'erp_db'@'%' IDENTIFIED BY '密码';
+GRANT ALL PRIVILEGES ON erp_db.* TO 'erp_db'@'%';
+FLUSH PRIVILEGES;
+```
+
+### SSL 证书复用（通配符）
+
+`jiemids.com` 站点用的是 **CloudFlare Origin CA 通配符证书**：
+
+```
+subject = CloudFlare Origin Certificate
+SAN     = *.jiemids.com, jiemids.com
+有效期  = 2026-09-22 ~ 2041-09-18
+```
+
+`*.jiemids.com` **天然覆盖 `erp.jiemids.com`**，不用单独申请证书，
+把文件复制到站点目录即可：
+
+```bash
+cp /www/server/panel/vhost/cert/jiemids.com/fullchain.pem \
+   /www/server/panel/vhost/cert/erp.jiemids.com/fullchain.pem
+cp /www/server/panel/vhost/cert/jiemids.com/privkey.pem \
+   /www/server/panel/vhost/cert/erp.jiemids.com/privkey.pem
+```
+
+> EdgeOne 边缘侧也已经有 `erp.jiemids.com` 的证书（免费证书，已部署，自动续期到 15 天前）。
+> 边缘证书与源站证书是**两套**，各管各的：边缘给用户看的，源站给 EdgeOne 回源看的。
+
+### 部署规范（已落地，见 `deploy/` 目录）
+
+| 文件 | 职责 |
+|---|---|
+| `deploy/Dockerfile` | ERP 后端镜像，构建上下文是 `target/`（里面只有一个 jar） |
+| `deploy/docker-compose.yml` | 生产编排：`erp-boot`（127.0.0.1:8082）+ `erp-redis`（127.0.0.1:16380），独立网络 `erp-net` |
+| `deploy/.env.example` | 环境变量模板，复制成 `.env` 后填真实值（`.env` 已 gitignore） |
+| `deploy/release.sh` | 后端发布：Maven 打包 → 构建镜像 → 推 TCR → 服务器 pull → compose 重启。支持 `--dry-run` / `--no-build` / `--no-deploy` / `--rollback <tag>` |
+| `deploy/release-web.sh` | 前端发布：npm build → tar 上传 → rsync 到 `/www/wwwroot/erp.jiemids.com`。支持 `--dry-run` / `--no-build` / `--rollback` |
+| `deploy/run-sql-prod.sh` | 在服务器上执行 SQL 脚本 |
+| `deploy/nginx-erp.conf` | 宝塔站点配置参考（前端静态 + `/api/` 反代 8082 + Swagger 关闭 + SPA fallback） |
+| `deploy/sql/` | 数据库变更脚本，按日期命名 |
+
+发布规则：
+
+- **服务器只 pull 不 build**（服务器内存偏紧，编译会压垮它）；构建在本地做。
+- TAG 格式 `日期-git短SHA`，工作区有改动带 `-dirty` 后缀。
+- 备份文件名**禁止带时间戳**（避免越积越多）；数据库变更脚本按日期命名归档到 `deploy/sql/`。
+- 服务器配置文件的备份同样不带时间戳。
+- 同业务域的 Nginx 路由规则集中分组并加注释，不允许分散堆放。
+
+### 生产构建的关键点（已验证）
+
+| 事项 | 做法 | 原因 |
+|---|---|---|
+| **本地凭据不能进 jar** | `pom.xml` 加 `prod` profile，`<resources>` 排除 `application-dev.yml`；`release.sh` 用 `mvn -Pprod package` | `application-dev.yml` 里有真实数据库密码与 JWT 密钥，位于 `src/main/resources` 下会被打进 jar。**注意：spring-boot-maven-plugin 的 `<excludes>` 是排除依赖的，不能用它排除资源** |
+| **必须钉死 prod profile** | Dockerfile 里 `ENV SPRING_PROFILES_ACTIVE=prod` | `application.yml` 的 `spring.profiles.default=dev` 只在没指定时生效；生产的 jar 又没有 `application-dev.yml`，回落到 dev 会导致 SQL 打印、异常外泄 |
+| **Redis 密码** | `application.yml` 的 `spring.data.redis.password` 读 `${REDIS_PASSWORD:}`，空值表示无密码 | 本地 dev 无密码、生产容器有密码，一份配置两边都能用 |
+| **未知路径返回 404** | `GlobalExceptionHandler` 加 `NoResourceFoundException` 处理 | 兜底 handler 会把 404 吃成 500，导致 nginx 的 `return 404` 规则形同虚设；生产关掉 Swagger 后被拦下的 `/v3/api-docs` 就会踩到 |
+| **Swagger 生产关闭** | `application-prod.yml` 里 `springdoc.api-docs.enabled=false` + `swagger-ui.enabled=false` | 已在容器内实测：`/v3/api-docs`、`/swagger-ui/index.html` 均返回 404 |
+
+已实测通过的验证链：`mvn -Pprod package` → jar 内只有 `application.yml` + `application-prod.yml`（无 dev）→
+`docker build` → 容器启动 → prod profile 生效 → Swagger 404 → 未知路径 404 → `docker compose config` 语法正确 →
+三个 bash 脚本 `bash -n` 语法检查通过 → `release.sh --dry-run` 跑通。
+
+### 服务器现状备忘（2026-11-26 实测）
+
+| 项 | 值 |
+|---|---|
+| 系统 | Ubuntu 24.04.4 LTS |
+| Docker | 29.9.1 / Compose v5.6.0 |
+| 规格 | 2 核 / 7.5G 内存（已用 4.2G，可用仅 3.4G）/ 99G 磁盘（已用 22G） |
+| 现有容器 | 电商的 11 个（9 Java + nacos + redis），**尚无 erp** |
+| Docker 网络 | `java_my-net`（172.19.0.0/16，电商在用）、`bridge`（172.17.0.0/16） |
+| 宝塔 nginx | 已在跑；`erp.jiemids.com` 站点配置已存在，反代 `127.0.0.1:8082` |
+| 宝塔面板 | 39999 端口，账号 `admin` / 密码 `7b9f162521890cc1` |
+| SSH | 别名 `ecommerce`（root@193.112.176.228，密钥 `~/.ssh/ecommerce.pem`） |
+
+> ERP 容器使用**独立网络 `erp-net`**，不挤进 `java_my-net`：
+> 电商已经占掉 4.2G 内存，ERP 再加两个容器会逼近上限。
 
 ---
 
