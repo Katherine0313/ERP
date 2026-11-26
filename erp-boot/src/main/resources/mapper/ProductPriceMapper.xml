@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductPriceMapper">
+
+    <select id="selectBySkuId" resultType="com.erp.vo.ProductPriceVO">
+        SELECT pr.id,
+               pr.sku_id AS skuId,
+               pr.unit_id AS unitId,
+               un.name AS unitName,
+               pr.price_type AS priceType,
+               pr.partner_type AS partnerType,
+               pr.partner_id AS partnerId,
+               pr.customer_level AS customerLevel,
+               pr.price,
+               pr.tax_rate AS taxRate,
+               pr.include_tax AS includeTax,
+               pr.enabled
+        FROM product_price pr
+        LEFT JOIN product_unit un ON un.id = pr.unit_id AND un.delete_flag = '0'
+        WHERE pr.sku_id = #{skuId} AND pr.delete_flag = '0'
+        ORDER BY pr.id
+    </select>
+
+    <insert id="insert" parameterType="com.erp.entity.ProductPrice"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product_price (
+            product_id, sku_id, unit_id, price_type, partner_type, partner_id,
+            customer_level, price, tax_rate, include_tax, enabled,
+            delete_flag, deleted_token, created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{productId}, #{skuId}, #{unitId}, #{priceType}, #{partnerType}, #{partnerId},
+            #{customerLevel}, #{price}, #{taxRate}, #{includeTax}, #{enabled},
+            '0', '0', #{createdBy}, #{updatedBy}, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <delete id="physicalDeleteByProductId">
+        DELETE FROM product_price WHERE product_id = #{productId}
+    </delete>
+
+    <!-- 导入用：默认 SKU 下某类型、基础单位的价格 -->
+    <select id="selectIdForImport" resultType="java.lang.Long">
+        SELECT id FROM product_price
+        WHERE sku_id = #{skuId}
+          AND price_type = #{priceType}
+          AND unit_id = 0
+          AND delete_flag = '0'
+        ORDER BY id LIMIT 1
+    </select>
+
+    <update id="updatePriceValue">
+        UPDATE product_price SET
+            price = #{price},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+</mapper>

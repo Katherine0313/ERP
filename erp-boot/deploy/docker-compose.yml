@@ -1,0 +1,54 @@
+# ERP 生产部署（/www/java/erp-boot）
+#
+# 使用前：
+#   1. 本目录放 .env（从 .env.example 复制并填真实值）
+#   2. 镜像由本地 deploy/release.sh 构建并推送，服务器只 pull，不 build
+#
+# 端口分配（避开电商已占用的端口）：
+#   8082  ERP 后端（只绑 127.0.0.1，由宿主机宝塔 nginx 反代）
+#   6380  ERP 专用 Redis（只绑 127.0.0.1，不对公网开放）
+# MySQL 用宝塔宿主机上的实例（5.7.44），容器通过 host.docker.internal 访问，
+# 与电商项目共用同一个 MySQL 实例，但库与账号各自独立。
+
+services:
+  # ERP 专用 Redis：与电商的 redis 容器隔离，避免 key 冲突与互相影响
+  redis:
+    image: redis:7-alpine
+    container_name: erp-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      # 只绑宿主机回环地址：公网访问不到，运维通过 ssh -L 16380:127.0.0.1:16380 隧道连
+      - "127.0.0.1:16380:6379"
+    volumes:
+      # AOF 落盘，容器重建数据不丢
+      - ./redis-data:/data
+    networks:
+      - erp-net
+
+  erp-boot:
+    # REGISTRY 是完整仓库路径（ccr.ccs.tencentyun.com/erp-boot/erp），后面不再拼服务名
+    image: "${REGISTRY:-local}:${TAG:-latest}"
+    container_name: erp-boot
+    restart: always
+    depends_on:
+      - redis
+    env_file: .env
+    extra_hosts:
+      # 连宿主机上的宝塔 MySQL
+      - "host.docker.internal:host-gateway"
+    ports:
+      # 只暴露给宿主机宝塔 nginx；公网只开 80/443
+      - "127.0.0.1:8082:8082"
+    environment:
+      JAVA_OPTS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=64m -Xss256k -XX:+UseSerialGC -Duser.timezone=Asia/Shanghai"
+      # Redis 走 Docker 内网容器名，不走宿主机端口
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    networks:
+      - erp-net
+
+networks:
+  # 独立网络，不挤进电商的 java_my-net（服务器内存已偏紧）
+  erp-net:
+    driver: bridge

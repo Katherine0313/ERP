@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductCategoryMapper">
+
+    <resultMap id="categoryResultMap" type="com.erp.entity.ProductCategory">
+        <id column="id" property="id"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="name" property="name"/>
+        <result column="category_level" property="categoryLevel"/>
+        <result column="serial_no" property="serialNo"/>
+        <result column="sort" property="sort"/>
+        <result column="remark" property="remark"/>
+        <result column="delete_flag" property="deleteFlag"/>
+        <result column="deleted_token" property="deletedToken"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="baseColumns">
+        id, parent_id, name, category_level, serial_no, sort, remark,
+        delete_flag, deleted_token, created_by, updated_by, create_time, update_time
+    </sql>
+
+    <!-- 查全部未删除的类目，平铺返回，由服务端组装成树 -->
+    <select id="selectAll" resultMap="categoryResultMap">
+        SELECT <include refid="baseColumns"/>
+        FROM product_category
+        WHERE delete_flag = '0'
+        ORDER BY parent_id, sort, id
+    </select>
+
+    <!-- 按 id 查未删除的类目 -->
+    <select id="selectById" resultMap="categoryResultMap">
+        SELECT <include refid="baseColumns"/>
+        FROM product_category
+        WHERE id = #{id}
+          AND delete_flag = '0'
+        LIMIT 1
+    </select>
+
+    <!-- 按 id 查（含已删除），用于唯一性校验时排除自身 -->
+    <select id="selectByIdAny" resultMap="categoryResultMap">
+        SELECT <include refid="baseColumns"/>
+        FROM product_category
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <!-- 同级类目名是否重复：只统计未删除的，排除自身 -->
+    <select id="countByName" resultType="int">
+        SELECT COUNT(*)
+        FROM product_category
+        WHERE delete_flag = '0'
+          AND parent_id = #{parentId}
+          AND name = #{name}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <!-- 子类目数量 -->
+    <select id="countChildren" resultType="int">
+        SELECT COUNT(*)
+        FROM product_category
+        WHERE delete_flag = '0'
+          AND parent_id = #{id}
+    </select>
+
+    <!-- 类目下商品数量 -->
+    <select id="countProducts" resultType="int">
+        SELECT COUNT(*)
+        FROM product
+        WHERE delete_flag = '0'
+          AND category_id = #{id}
+    </select>
+
+    <!-- 新增类目 -->
+    <insert id="insert" parameterType="com.erp.entity.ProductCategory"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product_category
+            (parent_id, name, category_level, serial_no, sort, remark,
+             delete_flag, deleted_token, created_by, updated_by, create_time, update_time)
+        VALUES
+            (#{parentId}, #{name}, #{categoryLevel}, #{serialNo}, #{sort}, #{remark},
+             '0', '0', #{createdBy}, #{updatedBy}, #{createTime}, #{updateTime})
+    </insert>
+
+    <!-- 修改类目 -->
+    <update id="update" parameterType="com.erp.entity.ProductCategory">
+        UPDATE product_category
+        SET parent_id      = #{parentId},
+            name           = #{name},
+            category_level = #{categoryLevel},
+            serial_no      = #{serialNo},
+            sort           = #{sort},
+            remark         = #{remark},
+            updated_by     = #{updatedBy},
+            update_time    = #{updateTime}
+        WHERE id = #{id}
+          AND delete_flag = '0'
+    </update>
+
+    <!-- 软删除：deleted_token 写唯一值，保证删掉后同名可以再建 -->
+    <update id="softDelete">
+        UPDATE product_category
+        SET delete_flag    = '1',
+            deleted_token  = #{deletedToken},
+            updated_by     = #{updatedBy},
+            update_time    = #{updateTime}
+        WHERE id = #{id}
+          AND delete_flag = '0'
+    </update>
+
+</mapper>

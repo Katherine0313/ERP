@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.AdminMapper">
+
+    <resultMap id="adminResultMap" type="com.erp.entity.Admin">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password" property="password"/>
+        <result column="name" property="name"/>
+        <result column="phone" property="phone"/>
+        <result column="admin_avatar" property="adminAvatar"/>
+        <result column="status" property="status"/>
+        <result column="del_flag" property="delFlag"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="baseColumns">
+        id, username, password, name, phone, admin_avatar, status, del_flag, create_time, update_time
+    </sql>
+
+    <!-- 按登录账号查管理员，只取未删除的 -->
+    <select id="findByUsername" resultMap="adminResultMap">
+        SELECT <include refid="baseColumns"/>
+        FROM admin
+        WHERE username = #{username}
+          AND del_flag = 0
+        LIMIT 1
+    </select>
+
+    <!-- 明文密码首次登录后升级为 BCrypt 密文时用 -->
+    <update id="updatePassword">
+        UPDATE admin
+        SET password    = #{password},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

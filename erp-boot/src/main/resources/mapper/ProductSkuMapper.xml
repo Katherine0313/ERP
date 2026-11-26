@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductSkuMapper">
+
+    <select id="selectByProductId" resultType="com.erp.entity.ProductSku">
+        SELECT id,
+               product_id AS productId,
+               sku_code AS skuCode,
+               bar_code AS barCode,
+               attr_signature AS attrSignature,
+               default_flag AS defaultFlag,
+               enabled,
+               create_time AS createTime,
+               update_time AS updateTime
+        FROM product_sku
+        WHERE product_id = #{productId} AND delete_flag = '0'
+        ORDER BY id
+    </select>
+
+    <select id="countByProductId" resultType="int">
+        SELECT COUNT(*) FROM product_sku
+        WHERE product_id = #{productId} AND delete_flag = '0'
+    </select>
+
+    <insert id="insert" parameterType="com.erp.entity.ProductSku"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product_sku (
+            product_id, sku_code, bar_code, attr_signature, default_flag,
+            enabled, delete_flag, deleted_token,
+            created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{productId}, #{skuCode}, #{barCode}, #{attrSignature}, #{defaultFlag},
+            #{enabled}, '0', '0',
+            #{createdBy}, #{updatedBy}, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <delete id="physicalDeleteByProductId">
+        DELETE FROM product_sku WHERE product_id = #{productId}
+    </delete>
+</mapper>

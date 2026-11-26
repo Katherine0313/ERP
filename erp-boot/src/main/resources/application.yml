@@ -1,0 +1,95 @@
+server:
+  port: 8082
+
+spring:
+  profiles:
+    # 未显式指定 profile 时使用 dev；上线用环境变量 SPRING_PROFILES_ACTIVE=prod 切换。
+    # dev 的配置分两处：
+    #   src/main/resources/application-dev.yml —— 开发期非敏感覆盖，可提交、可打包
+    #   config/application-dev.yml            —— 数据库密码 / JWT 密钥等凭据，已被 .gitignore 忽略，
+    #                                             位于 classpath 之外，不会打进 jar
+    # Boot 默认会搜索 file:./config/，且 application-dev.yml 只在 dev profile 激活时才加载，
+    # 所以 prod 不会误读 dev 凭据。
+    default: dev
+  application:
+    name: erp-boot
+  # 凭据不在本文件里，见 config/application-dev.yml（只在 dev profile 下加载）。
+  # 注意：devtools 会把 DataSource 延迟到第一次取连接才创建，所以凭据缺失或错误时
+  # 启动阶段不会报错，要到第一次查库才会暴露。生产环境需要单独的 config/application-prod.yml。
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: ERPHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      # 拿不到连接最多等 30s，避免请求线程被无限期挂住
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  # Redis：验证码存储与发送限频
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      # 生产环境 Redis 容器带密码；留空表示无密码（本地 dev 场景）
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+      connect-timeout: 3s
+      # 本项目只当缓存用，不做 Spring Data Repository 扫描，关掉可省掉启动时的扫描告警
+      repositories:
+        enabled: false
+  jackson:
+    # java.util.Date 按此格式序列化；LocalDateTime 不受此项影响（Boot 4 用 Jackson 3，
+    # java.time 支持已内置），要统一格式请用 @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    # 响应里不输出 null 字段
+    default-property-inclusion: non_null
+  web:
+    error:
+      # 错误信息默认不外泄（Boot 默认值，这里显式声明以免误改）；
+      # 本地排查要看到明细时由 application-dev.yml 放开
+      include-message: never
+      include-binding-errors: never
+      include-stacktrace: never
+  # servlet 只能配置一次：encoding 与 multipart 必须放在同一个 servlet 下
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+    # 上传大小限制：图片上限 5MB、视频上限 50MB，请求上限再留 1MB 给表单其它字段
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 51MB
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+mybatis:
+  # SQL 统一用 XML 管理，文件放在 resources/mapper 下，namespace 对应 Mapper 接口全限定名
+  mapper-locations: classpath*:mapper/*.xml
+  type-aliases-package: com.erp.entity
+  configuration:
+    # 下划线列名自动映射到驼峰属性（coupon.issue_type -> Coupon.issueType）
+    map-underscore-to-camel-case: true
+    # 默认不打印 SQL；开发期见 application-dev.yml
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.nologging.NoLoggingImpl}
+
+logging:
+  level:
+    root: INFO
+
+# JWT 配置（对应 com.erp.properties.JwtProperties，前缀 jwt）
+jwt:
+  # 密钥，直接取 UTF-8 字节，长度决定 jjwt 自动选用的签名算法
+  secret: ${JWT_SECRET}
+  # 令牌有效期（秒），默认 2 小时
+  expire: ${JWT_EXPIRE:7200}
+
+

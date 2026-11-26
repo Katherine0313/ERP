@@ -1,0 +1,6 @@
+ Swagger UI（可视化页面） │ http://127.0.0.1:8082/swagger-ui.html
+
+OpenAPI 定义（JSON）     │ http://127.0.0.1:8082/v3/api-docs
+
+CodeBuddy Code
+/model:lite

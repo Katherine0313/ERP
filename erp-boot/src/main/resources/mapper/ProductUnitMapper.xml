@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.erp.mapper.ProductUnitMapper">
+
+    <resultMap id="unitResultMap" type="com.erp.entity.ProductUnit">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="group_id" property="groupId"/>
+        <result column="ratio" property="ratio"/>
+        <result column="is_basic" property="isBasic"/>
+        <result column="sort" property="sort"/>
+        <result column="enabled" property="enabled"/>
+        <result column="delete_flag" property="deleteFlag"/>
+        <result column="deleted_token" property="deletedToken"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="unitColumns">
+        id, name, group_id, ratio, is_basic, sort, enabled,
+        delete_flag, deleted_token, created_by, updated_by, create_time, update_time
+    </sql>
+
+    <sql id="unitWhere">
+        WHERE u.delete_flag = '0'
+        <if test="keyword != null and keyword != ''">
+            AND u.name LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+    </sql>
+
+    <!-- 商品信息页下拉：未删除且启用（enabled 允许 NULL，视为启用） -->
+    <select id="selectAll" resultMap="unitResultMap">
+        SELECT <include refid="unitColumns"/>
+        FROM product_unit
+        WHERE delete_flag = '0'
+          AND (enabled = b'1' OR enabled IS NULL)
+        ORDER BY is_basic DESC, group_id, id
+    </select>
+
+    <!-- 基础单位下拉 -->
+    <select id="selectBasicList" resultMap="unitResultMap">
+        SELECT <include refid="unitColumns"/>
+        FROM product_unit
+        WHERE delete_flag = '0'
+          AND is_basic = '1'
+          AND (enabled = b'1' OR enabled IS NULL)
+        ORDER BY id
+    </select>
+
+    <!-- 列表：所属基础单位名由自联表带出 -->
+    <select id="selectPage" resultType="com.erp.vo.ProductUnitVO">
+        SELECT u.id,
+               u.name,
+               u.group_id AS groupId,
+               g.name AS groupName,
+               u.ratio,
+               u.is_basic AS isBasic,
+               u.sort,
+               u.enabled
+        FROM product_unit u
+        LEFT JOIN product_unit g ON g.id = u.group_id AND g.delete_flag = '0'
+        <include refid="unitWhere"/>
+        ORDER BY u.is_basic DESC, u.group_id, u.sort, u.id
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM product_unit u
+        <include refid="unitWhere"/>
+    </select>
+
+    <select id="selectById" resultMap="unitResultMap">
+        SELECT <include refid="unitColumns"/>
+        FROM product_unit
+        WHERE id = #{id} AND delete_flag = '0'
+        LIMIT 1
+    </select>
+
+    <select id="countByName" resultType="int">
+        SELECT COUNT(*) FROM product_unit
+        WHERE delete_flag = '0'
+          AND name = #{name}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <!-- 删除校验：基础单位下还有副单位 -->
+    <select id="countChildren" resultType="int">
+        SELECT COUNT(*) FROM product_unit
+        WHERE delete_flag = '0' AND group_id = #{id}
+    </select>
+
+    <select id="countProductUsage" resultType="int">
+        SELECT COUNT(*) FROM product
+        WHERE delete_flag = '0' AND unit_id = #{id}
+    </select>
+
+    <select id="countSkuUnitUsage" resultType="int">
+        SELECT COUNT(*) FROM product_sku_unit
+        WHERE delete_flag = '0' AND unit_id = #{id}
+    </select>
+
+    <select id="countPriceUsage" resultType="int">
+        SELECT COUNT(*) FROM product_price
+        WHERE delete_flag = '0' AND unit_id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.erp.entity.ProductUnit"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product_unit (
+            name, group_id, ratio, is_basic, sort, enabled,
+            delete_flag, deleted_token, created_by, updated_by, create_time, update_time
+        ) VALUES (
+            #{name}, #{groupId}, #{ratio}, #{isBasic}, #{sort}, #{enabled},
+            '0', '0', #{createdBy}, #{updatedBy}, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <!-- 类型（is_basic / group_id）不可改，避免破坏已有引用 -->
+    <update id="update" parameterType="com.erp.entity.ProductUnit">
+        UPDATE product_unit SET
+            name = #{name},
+            ratio = #{ratio},
+            sort = #{sort},
+            enabled = #{enabled},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id} AND delete_flag = '0'
+    </update>
+
+    <update id="updateEnabled">
+        UPDATE product_unit SET
+            enabled = #{enabled},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id} AND delete_flag = '0'
+    </update>
+
+    <update id="batchUpdateEnabled">
+        UPDATE product_unit SET
+            enabled = #{enabled},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE delete_flag = '0' AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="softDelete">
+        UPDATE product_unit SET
+            delete_flag = '1',
+            deleted_token = #{deletedToken},
+            updated_by = #{updatedBy},
+            update_time = #{updateTime}
+        WHERE id = #{id} AND delete_flag = '0'
+    </update>
+</mapper>
